@@ -770,9 +770,16 @@ class AdvancedFinOpsOrchestrator:
                 # Send data to backend API if available
                 if backend_available:
                     try:
+                        # Get account ID from AWS config
+                        try:
+                            account_id = self.aws_config.get_account_id()
+                        except Exception:
+                            account_id = "123456789012"
+                            
                         # Validate resource data before sending
                         validated_resources = []
                         for resource in resources:
+                            resource['accountId'] = account_id
                             validation = self.http_client.validate_data_schema(resource, 'resource')
                             if validation['valid']:
                                 validated_resources.append(resource)
@@ -966,12 +973,19 @@ class AdvancedFinOpsOrchestrator:
             # Send results to backend API if available
             try:
                 if self.http_client.health_check():
+                    # Get account ID from AWS config
+                    try:
+                        account_id = self.aws_config.get_account_id()
+                    except Exception:
+                        account_id = "123456789012"
+                        
                     # Validate and send optimization data
                     all_optimizations = []
                     for category, category_data in analysis_results.get('categories', {}).items():
                         for rec in category_data.get('recommendations', []):
                             # Add category to recommendation
                             rec['category'] = category
+                            rec['accountId'] = account_id
                             validation = self.http_client.validate_data_schema(rec, 'optimization')
                             if validation['valid']:
                                 all_optimizations.append(rec)
@@ -1083,9 +1097,16 @@ class AdvancedFinOpsOrchestrator:
             # Send results to backend API if available
             try:
                 if self.http_client.health_check():
+                    # Get account ID from AWS config
+                    try:
+                        account_id = self.aws_config.get_account_id()
+                    except Exception:
+                        account_id = "123456789012"
+                        
                     # Validate and send anomaly data
                     anomalies_to_send = []
                     for anomaly in anomaly_results.get('anomalies_detected', []):
+                        anomaly['accountId'] = account_id
                         validation = self.http_client.validate_data_schema(anomaly, 'anomaly')
                         if validation['valid']:
                             anomalies_to_send.append(anomaly)
@@ -1319,20 +1340,50 @@ class AdvancedFinOpsOrchestrator:
             # Send results to backend API if available
             try:
                 if self.http_client.health_check():
+                    # Get account ID from AWS config
+                    try:
+                        account_id = self.aws_config.get_account_id()
+                    except Exception:
+                        account_id = "123456789012"
+                        
+                    # Helper: translate budget_manager snake_case keys to backend camelCase
+                    def _to_camel_budget(b):
+                        return {
+                            'budgetId':     b.get('budgetId')     or b.get('budget_id', ''),
+                            'budgetType':   b.get('budgetType')   or b.get('budget_type', ''),
+                            'budgetAmount': b.get('budgetAmount') or b.get('budget_amount', 0),
+                            'name':         b.get('name', b.get('budget_id', '')),
+                            'period':       b.get('period', 'monthly'),
+                            'currency':     b.get('currency', 'USD'),
+                            'accountId':    account_id,
+                        }
+
                     # Send budget data to API with validation
                     for budget in self.budget_manager.budgets.values():
-                        validation = self.http_client.validate_data_schema(budget, 'budget')
+                        budget_payload = _to_camel_budget(budget)
+                        validation = self.http_client.validate_data_schema(budget_payload, 'budget')
                         if validation['valid']:
-                            self.http_client.post_data('/api/budgets', budget)
+                            try:
+                                self.http_client.post_data('/api/budgets', budget_payload)
+                            except Exception as e:
+                                if "status 409" in str(e).lower() or "already exists" in str(e).lower():
+                                    self.logger.info(f"Budget {budget_payload['budgetId']} already exists. Updating via PUT...")
+                                    try:
+                                        self.http_client.put_data(f"/api/budgets/{budget_payload['budgetId']}", budget_payload)
+                                    except Exception as put_err:
+                                        self.logger.warning(f"Failed to update existing budget {budget_payload['budgetId']}: {put_err}")
+                                else:
+                                    raise e
                         else:
-                            self.logger.warning(f"Budget validation failed for {budget.get('budgetId', 'unknown')}: {validation['errors']}")
-                    
+                            self.logger.warning(f"Budget validation failed for {budget_payload.get('budgetId', 'unknown')}: {validation['errors']}")
+
                     # Send forecasts with proper endpoint structure
                     for forecast in self.budget_manager.forecasts.values():
                         budget_id = forecast.get('budget_id')
                         if budget_id:
                             self.http_client.post_data(f'/api/budgets/{budget_id}/forecasts', forecast)
-                    
+
+
                     # Send alerts with proper endpoint structure
                     for alert in self.budget_manager.alerts:
                         budget_id = alert.get('budget_id')

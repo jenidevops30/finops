@@ -355,6 +355,21 @@ class HTTPClient:
         finally:
             structured_logger.clear_correlation_context()
     
+    def _sanitize_payload(self, obj: Any) -> Any:
+        """Recursively replace float inf, -inf, and nan with JSON-compliant values."""
+        import math
+        if isinstance(obj, dict):
+            return {k: self._sanitize_payload(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._sanitize_payload(x) for x in obj]
+        elif isinstance(obj, float):
+            if math.isinf(obj):
+                return 999999.99 if obj > 0 else -999999.99
+            elif math.isnan(obj):
+                return 0.0
+            return obj
+        return obj
+
     def _execute_request(self, method: str, url: str, data: Optional[Dict], params: Optional[Dict], correlation_id: str) -> Dict[str, Any]:
         """Execute the actual HTTP request."""
         # Check circuit breaker
@@ -369,13 +384,16 @@ class HTTPClient:
             'correlation_id': correlation_id
         })
         
+        # Sanitize data to remove any float('inf') or nan values that are not JSON compliant
+        sanitized_data = self._sanitize_payload(data) if data is not None else None
+        
         start_time = time.time()
         
         try:
             response = self.session.request(
                 method=method,
                 url=url,
-                json=data,
+                json=sanitized_data,
                 params=params,
                 timeout=self.timeout,
                 headers={'X-Correlation-ID': correlation_id}
@@ -401,9 +419,9 @@ class HTTPClient:
                     return {'success': True, 'data': response.text}
                     
             elif response.status_code == 404:
-                # Client error - don't retry, update metrics
+                # Client error - don't retry, update metrics, but treat server as online/responsive
                 self._update_performance_metrics(url, request_time, False)
-                self._update_circuit_breaker(url, False)
+                self._update_circuit_breaker(url, True)
                 
                 structured_logger.error(f"Endpoint not found", {
                     'url': url,
@@ -421,9 +439,9 @@ class HTTPClient:
                 raise Exception(f"Server error: {response.status_code}")
                 
             else:
-                # Other client errors - don't retry
+                # Other client errors (400, 409, etc.) - don't retry, but treat server as online/responsive
                 self._update_performance_metrics(url, request_time, False)
-                self._update_circuit_breaker(url, False)
+                self._update_circuit_breaker(url, True)
                 
                 structured_logger.error(f"Request failed", {
                     'status_code': response.status_code,
@@ -511,6 +529,20 @@ class HTTPClient:
         """
         logger.debug(f"Posting data to {endpoint}")
         return self._make_request('POST', endpoint, data=data)
+
+    def put_data(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generic method to put data to a specific endpoint.
+        
+        Args:
+            endpoint: API endpoint
+            data: Data to put
+            
+        Returns:
+            API response
+        """
+        logger.debug(f"Putting data to {endpoint}")
+        return self._make_request('PUT', endpoint, data=data)
     
     def post_optimizations(self, optimizations: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -571,7 +603,7 @@ class HTTPClient:
             'source': 'finops-bot'
         }
         
-        return self._make_request('POST', '/api/anomalies', data=payload)
+        return self._make_request('POST', '/api/anomalies/batch', data=payload)
     
     def post_budget_forecasts(self, forecasts: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -766,19 +798,19 @@ class HTTPClient:
         schema_requirements = {
             'resource': {
                 'required': ['resourceId', 'resourceType', 'region'],
-                'optional': ['currentCost', 'utilizationMetrics', 'timestamp']
+                'optional': ['currentCost', 'utilizationMetrics', 'timestamp', 'accountId']
             },
             'optimization': {
                 'required': ['optimizationId', 'resourceId', 'optimizationType', 'estimatedSavings'],
-                'optional': ['riskLevel', 'confidenceScore', 'timestamp']
+                'optional': ['riskLevel', 'confidenceScore', 'timestamp', 'accountId']
             },
             'anomaly': {
                 'required': ['anomalyId', 'anomalyType', 'severity', 'actualCost', 'expectedCost'],
-                'optional': ['region', 'rootCause', 'timestamp']
+                'optional': ['region', 'rootCause', 'timestamp', 'accountId']
             },
             'budget': {
                 'required': ['budgetId', 'budgetType', 'budgetAmount'],
-                'optional': ['parentBudgetId', 'tags', 'timestamp']
+                'optional': ['parentBudgetId', 'tags', 'timestamp', 'accountId']
             }
         }
         

@@ -22,8 +22,10 @@ import {
 import StatusBadge from '../components/StatusBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { apiService } from '../services/api';
+import { useFinOps } from '../context/FinOpsContext';
 
 const Budgets = () => {
+  const { selectedAccount, selectedRegion } = useFinOps();
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBudget, setSelectedBudget] = useState(null);
@@ -34,8 +36,11 @@ const Budgets = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiService.getBudgets();
-      setBudgets(response.data.data || []);
+      const response = await apiService.getBudgets({
+        accountId: selectedAccount,
+        region: selectedRegion
+      });
+      setBudgets(response.data.data.budgets || []);
     } catch (err) {
       console.error('Error fetching budgets:', err);
       setError('Failed to load budgets');
@@ -44,7 +49,7 @@ const Budgets = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedAccount, selectedRegion]);
 
   useEffect(() => {
     fetchBudgets();

@@ -24,8 +24,10 @@ import MetricCard from '../components/MetricCard';
 import StatusBadge from '../components/StatusBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { apiService } from '../services/api';
+import { useFinOps } from '../context/FinOpsContext';
 
 const Dashboard = () => {
+  const { selectedAccount, selectedRegion } = useFinOps();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [timeRange, setTimeRange] = useState('7d');
@@ -36,10 +38,16 @@ const Dashboard = () => {
       setLoading(true);
       setError(null);
 
+      const params = {
+        accountId: selectedAccount,
+        region: selectedRegion,
+        timeRange
+      };
+
       const [dashboardResponse, metricsResponse, chartsResponse] = await Promise.all([
-        apiService.getDashboardData(),
-        apiService.getDashboardMetrics(),
-        apiService.getDashboardCharts(timeRange)
+        apiService.getDashboardData(params),
+        apiService.getDashboardMetrics(params),
+        apiService.getDashboardCharts(params)
       ]);
 
       setDashboardData({
@@ -55,7 +63,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [timeRange]);
+  }, [timeRange, selectedAccount, selectedRegion]);
 
   useEffect(() => {
     fetchDashboardData();

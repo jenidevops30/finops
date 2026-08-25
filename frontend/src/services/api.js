@@ -66,19 +66,16 @@ export const apiService = {
 
   // Savings
   getSavings: (params = {}) => api.get('/api/savings', { params }),
-  getSavingsSummary: () => api.get('/api/savings/summary'),
+  getSavingsSummary: (params = {}) => api.get('/api/savings/summary', { params }),
 
   // Pricing
   getPricing: (params = {}) => api.get('/api/pricing', { params }),
   getPricingRecommendations: () => api.get('/api/pricing/recommendations'),
 
   // Dashboard
-  getDashboardData: () => api.get('/api/dashboard'),
-  getDashboardMetrics: () => api.get('/api/dashboard/metrics'),
-getDashboardCharts: (timeRange = '7d') =>
-  api.get('/api/dashboard/charts', {
-    params: { timeRange }
-  }),
+  getDashboardData: (params = {}) => api.get('/api/dashboard', { params }),
+  getDashboardMetrics: (params = {}) => api.get('/api/dashboard/metrics', { params }),
+  getDashboardCharts: (params = {}) => api.get('/api/dashboard/charts', { params }),
   
   // Monitoring
   getSystemHealth: () => api.get('/api/monitoring/health'),

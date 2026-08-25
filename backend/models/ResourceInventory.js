@@ -8,11 +8,21 @@
  */
 
 class ResourceInventory {
+  /**
+   * Normalize CloudWatch sub-types (cloudwatch_log_group, cloudwatch_alarm, etc.) to 'cloudwatch'
+   * so they pass validation against the allowed resource type list.
+   */
+  static _normalizeResourceType(type) {
+    if (typeof type === 'string' && type.startsWith('cloudwatch')) return 'cloudwatch';
+    return type;
+  }
+
   constructor(data = {}) {
     // Required fields
     this.resourceId = data.resourceId || '';
-    this.resourceType = data.resourceType || ''; // 'ec2', 'rds', 'lambda', 's3', 'ebs', 'elb', 'cloudwatch'
+    this.resourceType = ResourceInventory._normalizeResourceType(data.resourceType || ''); // 'ec2', 'rds', 'lambda', 's3', 'ebs', 'elb', 'cloudwatch'
     this.region = data.region || '';
+    this.accountId = data.accountId || '123456789012';
     this.timestamp = data.timestamp || new Date().toISOString();
     
     // Cost and utilization data
@@ -83,6 +93,7 @@ class ResourceInventory {
       resourceId: this.resourceId,
       resourceType: this.resourceType,
       region: this.region,
+      accountId: this.accountId,
       currentCost: this.currentCost,
       utilizationMetrics: this.utilizationMetrics,
       optimizationOpportunities: this.optimizationOpportunities,

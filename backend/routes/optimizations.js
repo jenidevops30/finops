@@ -31,7 +31,8 @@ router.get('/', (req, res) => {
       limit = 100, 
       offset = 0,
       sortBy = 'estimatedSavings',
-      sortOrder = 'desc'
+      sortOrder = 'desc',
+      accountId
     } = req.query;
     
     let filteredOptimizations = [...optimizations];
@@ -53,7 +54,11 @@ router.get('/', (req, res) => {
       filteredOptimizations = filteredOptimizations.filter(o => o.resourceId === resourceId);
     }
     
-    if (region) {
+    if (accountId && accountId !== 'all') {
+      filteredOptimizations = filteredOptimizations.filter(o => o.accountId === accountId);
+    }
+    
+    if (region && region !== 'all') {
       filteredOptimizations = filteredOptimizations.filter(o => o.region === region);
     }
     
@@ -438,4 +443,5 @@ router.get('/stats/summary', (req, res) => {
   }
 });
 
+router.optimizations = optimizations;
 module.exports = router;

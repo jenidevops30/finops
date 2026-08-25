@@ -28,7 +28,8 @@ router.get('/', (req, res) => {
       status, 
       parentBudgetId,
       limit = 100, 
-      offset = 0 
+      offset = 0,
+      accountId
     } = req.query;
     
     let filteredBudgets = [...budgets];
@@ -44,6 +45,10 @@ router.get('/', (req, res) => {
     
     if (parentBudgetId) {
       filteredBudgets = filteredBudgets.filter(b => b.parentBudgetId === parentBudgetId);
+    }
+    
+    if (accountId && accountId !== 'all') {
+      filteredBudgets = filteredBudgets.filter(b => b.accountId === accountId || b.budgetId.includes(accountId));
     }
     
     // Apply pagination
@@ -627,5 +632,5 @@ router.get('/stats/summary', (req, res) => {
   }
 });
 
-// Export the router
+router.budgets = budgets;
 module.exports = router;

@@ -19,8 +19,33 @@ const anomalyRoutes = require('./anomalies');
 const savingsRoutes = require('./savings');
 const pricingRoutes = require('./pricing');
 
-// Python bot base URL
-// const FINOPS_BOT_URL = process.env.FINOPS_BOT_URL || "http://localhost:7000";
+/// Helper to filter all data sources based on accountId and region
+function getFilteredData(query) {
+  const { accountId, region } = query;
+  
+  let resList = resourceRoutes.resources || [];
+  let optList = optimizationRoutes.optimizations || [];
+  let anomalyList = anomalyRoutes.anomalies || [];
+  let budgetList = budgetRoutes.budgets || [];
+  let savingsList = savingsRoutes.savingsRecords || [];
+  
+  if (accountId && accountId !== 'all') {
+    resList = resList.filter(r => r.accountId === accountId);
+    optList = optList.filter(o => o.accountId === accountId);
+    anomalyList = anomalyList.filter(a => a.accountId === accountId);
+    budgetList = budgetList.filter(b => b.accountId === accountId || b.budgetId.includes(accountId));
+    savingsList = savingsList.filter(s => s.accountId === accountId);
+  }
+  
+  if (region && region !== 'all') {
+    resList = resList.filter(r => r.region === region);
+    optList = optList.filter(o => o.region === region);
+    anomalyList = anomalyList.filter(a => a.region === region);
+    savingsList = savingsList.filter(s => s.region === region);
+  }
+  
+  return { resList, optList, anomalyList, budgetList, savingsList };
+}
 
 /**
  * GET /api/dashboard (base endpoint)
@@ -28,15 +53,34 @@ const pricingRoutes = require('./pricing');
  */
 router.get('/', async (req, res) => {
   try {
-    const { timeRange = '7d' } = req.query;
-
+    const { resList, optList, anomalyList, budgetList, savingsList } = getFilteredData(req.query);
+    
+    // Calculate total cost (sum of currentCost of filtered resources)
+    const totalCost = resList.reduce((sum, r) => sum + (r.currentCost || 0), 0);
+    
+    // Calculate monthly savings
+    const monthlySavings = savingsList.reduce((sum, s) => sum + (s.savingsAmount || 0), 0);
+    
+    // Active anomalies count (not resolved)
+    const activeAnomalies = anomalyList.filter(a => !a.resolved).length;
+    
+    // Budget utilization
+    let budgetUtilization = 0;
+    if (budgetList.length > 0) {
+      const totalSpent = budgetList.reduce((sum, b) => sum + (b.currentSpend || 0), 0);
+      const totalLimit = budgetList.reduce((sum, b) => sum + (b.limitAmount || 0), 0);
+      budgetUtilization = totalLimit > 0 ? (totalSpent / totalLimit) * 100 : 0;
+    } else {
+      budgetUtilization = 78.5; // fallback default
+    }
+    
     const dashboardData = {
-      totalCost: 45678.90,
-      monthlySavings: 8234.56,
-      optimizationOpportunities: 23,
-      activeAnomalies: 3,
-      resourceCount: 1247,
-      budgetUtilization: 78.5,
+      totalCost: totalCost || 45678.90, // fallback to mock if empty
+      monthlySavings: monthlySavings || 8234.56,
+      optimizationOpportunities: optList.filter(o => o.status === 'pending').length || 23,
+      activeAnomalies: activeAnomalies || 3,
+      resourceCount: resList.length || 1247,
+      budgetUtilization: Math.round(budgetUtilization * 10) / 10,
       lastUpdated: new Date().toISOString()
     };
 
@@ -59,53 +103,28 @@ router.get('/', async (req, res) => {
   }
 });
 
-// /**
-//  * GET /api/dashboard
-//  * Main dashboard summary
-//  * Frontend: apiService.getDashboardData()
-//  */
-// router.get("/", async (req, res) => {
-//   try {
-//     // Quick health check
-//     // await axios.get(`${FINOPS_BOT_URL}/health`, { timeout: 3000 });
-
-//     const botResponse = await axios.get(`${FINOPS_BOT_URL}/dashboard`, {
-//       timeout: 120000 // FinOps scans can be heavy
-//     });
-
-//     console.log("🤖 Dashboard data received from Python FinOps bot");
-
-//     res.json({
-//       success: true,
-//       source: botResponse.data.source || "python-finops-bot",
-//       data: botResponse.data.data,
-//       timestamp: new Date().toISOString()
-//     });
-//   } catch (error) {
-//     console.error("❌ Failed to fetch dashboard data from FinOps bot:", error.message);
-
-//     res.status(503).json({
-//       success: false,
-//       source: "backend",
-//       message: "FinOps bot is unavailable",
-//       error: error.message,
-//       timestamp: new Date().toISOString()
-//     });
-//   }
-// });
-
-
 /**
  * GET /api/dashboard/metrics
  * Get dashboard metrics - matches frontend getDashboardMetrics() call
  */
 router.get('/metrics', async (req, res) => {
   try {
+    const { resList, optList } = getFilteredData(req.query);
+    
+    // Calculate efficiency score: 100 - (pending optimizations cost / total cost) * 100
+    const totalCost = resList.reduce((sum, r) => sum + (r.currentCost || 0), 0);
+    const potentialSavings = optList.filter(o => o.status === 'pending').reduce((sum, o) => sum + (o.estimatedSavings || 0), 0);
+    
+    let efficiencyScore = 87.2;
+    if (totalCost > 0) {
+      efficiencyScore = Math.max(50, 100 - (potentialSavings / (totalCost + potentialSavings)) * 100);
+    }
+    
     const metrics = {
       costTrend: '+12.3%',
       savingsRate: '+15.7%',
-      efficiencyScore: 87.2,
-      optimizationRate: 65.4,
+      efficiencyScore: Math.round(efficiencyScore * 10) / 10,
+      optimizationRate: optList.length > 0 ? Math.round((optList.filter(o => o.status === 'executed').length / optList.length) * 100 * 10) / 10 : 65.4,
       anomalyDetectionRate: 95.2
     };
 
@@ -135,6 +154,64 @@ router.get('/metrics', async (req, res) => {
 router.get('/charts', async (req, res) => {
   try {
     const { timeRange = '7d' } = req.query;
+    const { resList, optList, savingsList } = getFilteredData(req.query);
+
+    const totalCost = resList.reduce((sum, r) => sum + (r.currentCost || 0), 0);
+    const monthlySavings = savingsList.reduce((sum, s) => sum + (s.savingsAmount || 0), 0);
+
+    // serviceBreakdown
+    const serviceCosts = {};
+    resList.forEach(r => {
+      const type = (r.resourceType || 'other').toUpperCase();
+      serviceCosts[type] = (serviceCosts[type] || 0) + (r.currentCost || 0);
+    });
+    
+    const colors = {
+      EC2: '#3b82f6',
+      RDS: '#10b981',
+      S3: '#f59e0b',
+      LAMBDA: '#ef4444',
+      EBS: '#8b5cf6',
+      ELB: '#ec4899',
+      CLOUDWATCH: '#6b7280'
+    };
+    
+    let serviceBreakdown = Object.keys(serviceCosts).map(name => ({
+      name,
+      value: Math.round(serviceCosts[name] * 100) / 100,
+      color: colors[name] || '#6b7280'
+    }));
+    
+    if (serviceBreakdown.length === 0) {
+      serviceBreakdown = [
+        { name: 'EC2', value: 18500, color: '#3b82f6' },
+        { name: 'RDS', value: 12300, color: '#10b981' },
+        { name: 'S3', value: 8900, color: '#f59e0b' },
+        { name: 'Lambda', value: 3200, color: '#ef4444' },
+        { name: 'EBS', value: 2778, color: '#8b5cf6' }
+      ];
+    }
+
+    // regionCosts
+    const regionCostsMap = {};
+    resList.forEach(r => {
+      const region = r.region || 'unknown';
+      regionCostsMap[region] = (regionCostsMap[region] || 0) + (r.currentCost || 0);
+    });
+    
+    let regionCosts = Object.keys(regionCostsMap).map(region => ({
+      region,
+      cost: Math.round(regionCostsMap[region] * 100) / 100
+    }));
+    
+    if (regionCosts.length === 0) {
+      regionCosts = [
+        { region: 'us-east-1', cost: 18500 },
+        { region: 'us-west-2', cost: 15200 },
+        { region: 'eu-west-1', cost: 8900 },
+        { region: 'ap-southeast-1', cost: 3078 }
+      ];
+    }
 
     const charts = {
       costTrend: [
@@ -142,21 +219,10 @@ router.get('/charts', async (req, res) => {
         { date: '2024-01-02', cost: 43200, savings: 7800 },
         { date: '2024-01-03', cost: 44100, savings: 8100 },
         { date: '2024-01-04', cost: 45600, savings: 8200 },
-        { date: '2024-01-05', cost: 45678, savings: 8234 }
+        { date: '2024-01-05', cost: totalCost || 45678, savings: monthlySavings || 8234 }
       ],
-      serviceBreakdown: [
-        { name: 'EC2', value: 18500, color: '#3b82f6' },
-        { name: 'RDS', value: 12300, color: '#10b981' },
-        { name: 'S3', value: 8900, color: '#f59e0b' },
-        { name: 'Lambda', value: 3200, color: '#ef4444' },
-        { name: 'EBS', value: 2778, color: '#8b5cf6' }
-      ],
-      regionCosts: [
-        { region: 'us-east-1', cost: 18500 },
-        { region: 'us-west-2', cost: 15200 },
-        { region: 'eu-west-1', cost: 8900 },
-        { region: 'ap-southeast-1', cost: 3078 }
-      ]
+      serviceBreakdown,
+      regionCosts
     };
 
     console.log(`📊 SENDING DASHBOARD CHARTS (${timeRange})`);

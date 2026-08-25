@@ -21,8 +21,10 @@ import {
 import StatusBadge from '../components/StatusBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { apiService } from '../services/api';
+import { useFinOps } from '../context/FinOpsContext';
 
 const Anomalies = () => {
+  const { selectedAccount, selectedRegion } = useFinOps();
   const [anomalies, setAnomalies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedAnomaly, setSelectedAnomaly] = useState(null);
@@ -35,7 +37,10 @@ const Anomalies = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiService.getAnomalies();
+      const response = await apiService.getAnomalies({
+        accountId: selectedAccount,
+        region: selectedRegion
+      });
       setAnomalies(response.data.data || []);
     } catch (err) {
       console.error('Error fetching anomalies:', err);
@@ -45,7 +50,7 @@ const Anomalies = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedAccount, selectedRegion]);
 
   useEffect(() => {
     fetchAnomalies();

@@ -1554,8 +1554,9 @@ class MLRightSizingEngine:
             qualifying_recs = sum(1 for conf in confidences if conf >= threshold)
             threshold_results[f'threshold_{threshold}'] = {
                 'qualifying_recommendations': qualifying_recs,
-                'percentage': (qualifying_recs / len(recommendations)) * 100
+                'percentage': (qualifying_recs / len(recommendations)) * 100 if recommendations else 0
             }
+
         
         return threshold_results
     

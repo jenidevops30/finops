@@ -871,6 +871,17 @@ class CostOptimizer:
             current_cost, projected_cost, estimated_savings, implementation_timeline
         )
         
+        # Map ConfidenceLevel enum or string to a numeric score between 0 and 100
+        confidence_map = {
+            'LOW': 30,
+            'MEDIUM': 60,
+            'HIGH': 90,
+            ConfidenceLevel.LOW: 30,
+            ConfidenceLevel.MEDIUM: 60,
+            ConfidenceLevel.HIGH: 90
+        }
+        confidence_val = confidence_map.get(confidence, 80)
+
         return {
             'optimizationId': f"{resource_type}-{resource_id}-{optimization_type.value}-{int(datetime.utcnow().timestamp())}",
             'resourceId': resource_id,
@@ -883,7 +894,7 @@ class CostOptimizer:
             'estimatedSavings': estimated_savings,
             'savingsPercentage': (estimated_savings / current_cost * 100) if current_cost > 0 else 0,
             'riskLevel': risk_level.value,
-            'confidenceScore': confidence.value,
+            'confidenceScore': confidence_val,
             'implementationEffort': implementation_effort,
             'implementationTimeline': implementation_timeline,
             'costBenefitAnalysis': cost_benefit_analysis,
@@ -916,11 +927,22 @@ class CostOptimizer:
                 'CRITICAL': 0.4
             }.get(opt.get('riskLevel', 'MEDIUM'), 0.8)
             
+            conf_val = opt.get('confidenceScore', 'MEDIUM')
+            if isinstance(conf_val, (int, float)):
+                if conf_val >= 80:
+                    conf_key = 'HIGH'
+                elif conf_val >= 50:
+                    conf_key = 'MEDIUM'
+                else:
+                    conf_key = 'LOW'
+            else:
+                conf_key = str(conf_val)
+
             confidence_multiplier = {
                 'HIGH': 1.0,
                 'MEDIUM': 0.8,
                 'LOW': 0.6
-            }.get(opt.get('confidenceScore', 'MEDIUM'), 0.8)
+            }.get(conf_key, 0.8)
             
             effort_multiplier = {
                 'Low': 1.0,
@@ -1197,10 +1219,11 @@ class CostOptimizer:
         recommendations['success_metrics'] = {
             'target_monthly_savings': total_savings,
             'target_annual_savings': total_savings * 12,
-            'target_cost_reduction_percentage': (total_savings / sum(
-                sum(resource.get('currentCost', 0) for resource in resources)
-                for resources in [all_optimizations]  # Simplified for this context
+            'target_cost_reduction_percentage': (total_savings / max(
+                sum(resource.get('currentCost', 0) for resource in all_optimizations),
+                0.01  # avoid divide-by-zero when all resources have $0 cost
             ) * 100) if all_optimizations else 0,
+
             'kpis': [
                 'Monthly cost reduction achieved',
                 'Number of optimizations implemented',

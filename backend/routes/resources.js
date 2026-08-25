@@ -32,7 +32,8 @@ router.get('/', (req, res) => {
       limit = 100, 
       offset = 0,
       sortBy = 'timestamp',
-      sortOrder = 'desc'
+      sortOrder = 'desc',
+      accountId
     } = req.query;
     
     let filteredResources = [...resources];
@@ -42,7 +43,11 @@ router.get('/', (req, res) => {
       filteredResources = filteredResources.filter(r => r.resourceType === resourceType);
     }
     
-    if (region) {
+    if (accountId && accountId !== 'all') {
+      filteredResources = filteredResources.filter(r => r.accountId === accountId);
+    }
+    
+    if (region && region !== 'all') {
       filteredResources = filteredResources.filter(r => r.region === region);
     }
     
@@ -468,4 +473,5 @@ function formatResourcesSummary(resources) {
   };
 }
 
+router.resources = resources;
 module.exports = router;

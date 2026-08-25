@@ -221,6 +221,13 @@ class ErrorClassifier:
                     return ErrorCategory.CLIENT_ERROR
             elif 500 <= status_code < 600:
                 return ErrorCategory.SERVER_ERROR
+
+        # Check for HTTP status codes in standard exception messages (e.g. from HTTP client)
+        if "status 4" in error_message.lower() or "status code 4" in error_message.lower() or "status_code 4" in error_message.lower():
+            return ErrorCategory.CLIENT_ERROR
+        if "status 5" in error_message.lower() or "status code 5" in error_message.lower() or "status_code 5" in error_message.lower():
+            return ErrorCategory.SERVER_ERROR
+
         
         # Transient errors (network, temporary issues)
         transient_keywords = ['timeout', 'connection', 'network', 'temporary', 'unavailable']
@@ -392,7 +399,8 @@ class RecoveryManager:
         # Update recovery state
         state = self._get_or_create_state(operation_name)
         with self.lock:
-            state.consecutive_failures += 1
+            if error_category != ErrorCategory.CLIENT_ERROR:
+                state.consecutive_failures += 1
             state.last_failure_time = time.time()
             state.total_attempts += 1
             state.total_failures += 1

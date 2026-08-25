@@ -30,7 +30,8 @@ router.get('/', (req, res) => {
       groupBy = 'day',
       format = 'standard',
       limit = 100, 
-      offset = 0 
+      offset = 0,
+      accountId
     } = req.query;
     
     let filteredSavings = [...savingsRecords];
@@ -64,7 +65,11 @@ router.get('/', (req, res) => {
       filteredSavings = filteredSavings.filter(s => s.serviceType === service);
     }
     
-    if (region) {
+    if (accountId && accountId !== 'all') {
+      filteredSavings = filteredSavings.filter(s => s.accountId === accountId);
+    }
+    
+    if (region && region !== 'all') {
       filteredSavings = filteredSavings.filter(s => s.region === region);
     }
     
@@ -231,7 +236,8 @@ router.get('/chart-data', (req, res) => {
       timeRange = '30d',
       groupBy = 'day',
       service,
-      region 
+      region,
+      accountId
     } = req.query;
     
     let filteredSavings = [...savingsRecords];
@@ -241,7 +247,11 @@ router.get('/chart-data', (req, res) => {
       filteredSavings = filteredSavings.filter(s => s.serviceType === service);
     }
     
-    if (region) {
+    if (accountId && accountId !== 'all') {
+      filteredSavings = filteredSavings.filter(s => s.accountId === accountId);
+    }
+    
+    if (region && region !== 'all') {
       filteredSavings = filteredSavings.filter(s => s.region === region);
     }
     
@@ -296,9 +306,17 @@ router.get('/chart-data', (req, res) => {
  */
 router.get('/summary', (req, res) => {
   try {
-    const { timeRange = '30d' } = req.query;
+    const { timeRange = '30d', accountId, region } = req.query;
     
     let filteredSavings = [...savingsRecords];
+    
+    if (accountId && accountId !== 'all') {
+      filteredSavings = filteredSavings.filter(s => s.accountId === accountId);
+    }
+    
+    if (region && region !== 'all') {
+      filteredSavings = filteredSavings.filter(s => s.region === region);
+    }
     
     // Apply time range
     const now = new Date();
@@ -563,4 +581,5 @@ function formatSummary(savings) {
   };
 }
 
+router.savingsRecords = savingsRecords;
 module.exports = router;

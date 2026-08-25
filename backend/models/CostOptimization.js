@@ -17,6 +17,7 @@ class CostOptimization {
     this.optimizationId = data.optimizationId || this.generateId();
     this.resourceId = data.resourceId || '';
     this.region = data.region || '';
+    this.accountId = data.accountId || '123456789012';
     this.timestamp = data.timestamp || new Date().toISOString();
     
     // Optimization details
@@ -183,6 +184,7 @@ class CostOptimization {
       optimizationId: this.optimizationId,
       resourceId: this.resourceId,
       region: this.region,
+      accountId: this.accountId,
       optimizationType: this.optimizationType,
       currentCost: this.currentCost,
       projectedCost: this.projectedCost,

@@ -11,8 +11,10 @@ import {
 import StatusBadge from '../components/StatusBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { apiService } from '../services/api';
+import { useFinOps } from '../context/FinOpsContext';
 
 const Optimizations = () => {
+  const { selectedAccount, selectedRegion } = useFinOps();
   const [optimizations, setOptimizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOptimization, setSelectedOptimization] = useState(null);
@@ -23,7 +25,10 @@ const Optimizations = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiService.getOptimizations();
+      const response = await apiService.getOptimizations({
+        accountId: selectedAccount,
+        region: selectedRegion
+      });
       setOptimizations(response.data.data || []);
     } catch (err) {
       console.error('Error fetching optimizations:', err);
@@ -33,7 +38,7 @@ const Optimizations = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedAccount, selectedRegion]);
 
   useEffect(() => {
     fetchOptimizations();

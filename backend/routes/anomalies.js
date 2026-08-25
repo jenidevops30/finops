@@ -29,7 +29,8 @@ router.get('/', (req, res) => {
       startDate,
       endDate,
       limit = 100, 
-      offset = 0 
+      offset = 0,
+      accountId
     } = req.query;
     
     let filteredAnomalies = [...anomalies];
@@ -43,7 +44,11 @@ router.get('/', (req, res) => {
       filteredAnomalies = filteredAnomalies.filter(a => a.anomalyType === anomalyType);
     }
     
-    if (region) {
+    if (accountId && accountId !== 'all') {
+      filteredAnomalies = filteredAnomalies.filter(a => a.accountId === accountId);
+    }
+    
+    if (region && region !== 'all') {
       filteredAnomalies = filteredAnomalies.filter(a => a.region === region);
     }
     
@@ -567,4 +572,5 @@ router.get('/stats/summary', (req, res) => {
 });
 
 // Export the router
+router.anomalies = anomalies;
 module.exports = router;

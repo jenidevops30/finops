@@ -13,20 +13,24 @@ import {
 import StatusBadge from '../components/StatusBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { apiService } from '../services/api';
+import { useFinOps } from '../context/FinOpsContext';
 
 const Resources = () => {
+  const { selectedAccount, selectedRegion, setSelectedRegion } = useFinOps();
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedService, setSelectedService] = useState('all');
-  const [selectedRegion, setSelectedRegion] = useState('all');
   const [, setError] = useState(null);
 
   const fetchResources = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiService.getResources();
+      const response = await apiService.getResources({
+        accountId: selectedAccount,
+        region: selectedRegion
+      });
       setResources(response.data.data || []);
     } catch (err) {
       console.error('Error fetching resources:', err);
@@ -36,7 +40,7 @@ const Resources = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedAccount, selectedRegion]);
 
   useEffect(() => {
     fetchResources();
@@ -171,7 +175,7 @@ const Resources = () => {
       <div className="card">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
@@ -179,17 +183,17 @@ const Resources = () => {
                 placeholder="Search resources..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                className="pl-10 w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-primary-500 focus:ring-primary-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Service</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Service</label>
             <select
               value={selectedService}
               onChange={(e) => setSelectedService(e.target.value)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              className="w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-primary-500 focus:ring-primary-500"
             >
               <option value="all">All Services</option>
               {services.map(service => (
@@ -199,11 +203,11 @@ const Resources = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Region</label>
             <select
               value={selectedRegion}
               onChange={(e) => setSelectedRegion(e.target.value)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              className="w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-primary-500 focus:ring-primary-500"
             >
               <option value="all">All Regions</option>
               {regions.map(region => (
@@ -320,14 +324,27 @@ const Resources = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-wrap gap-1">
-                        {resource.optimizationOpportunities?.map((opp, index) => (
-                          <span
-                            key={index}
-                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                          >
-                            {opp.replace('_', ' ')}
-                          </span>
-                        ))}
+                        {(() => {
+                          const opps = resource.optimizationOpportunities;
+                          if (!opps) return null;
+                          const oppsArray = Array.isArray(opps) ? opps : [opps];
+                          return oppsArray.map((opp, index) => {
+                            let displayText = '';
+                            if (opp && typeof opp === 'object') {
+                              displayText = opp.type || opp.title || opp.name || JSON.stringify(opp);
+                            } else {
+                              displayText = String(opp || '');
+                            }
+                            return (
+                              <span
+                                key={index}
+                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                              >
+                                {displayText.replace(/_/g, ' ')}
+                              </span>
+                            );
+                          });
+                        })()}
                       </div>
                     </td>
                   </tr>
